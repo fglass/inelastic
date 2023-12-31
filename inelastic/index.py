@@ -1,26 +1,30 @@
+from typing import NamedTuple
+
 from inelastic.analysis import analyze
 
-# Term -> postings (sorted) -> tf
-Index = dict[str, dict[int, int]]
+PostingEntry = NamedTuple("PostingEntry", [("tf", int), ("field_length", int)])
+# Term -> postings (sorted) -> posting_entry(tf, field_length)
+Index = dict[str, dict[int, PostingEntry]]
 
 
 def index(docs: list[tuple[str, str]]) -> Index:
     idx: Index = {}
 
-    # Add doc ID to postings and increment term frequency
-    for term, doc_id in _extract_terms(docs):
+    for term, doc_id, field_length in _extract_terms(docs):
         if term not in idx:
             idx[term] = {}
-        idx[term][doc_id] = idx[term].get(doc_id, 0) + 1
+        tf = idx[term].get(doc_id, PostingEntry(0, 0)).tf
+        idx[term][doc_id] = PostingEntry(tf + 1, field_length)
 
     return idx
 
 
-def _extract_terms(docs: list[tuple[str, str]]) -> list[tuple[str, int]]:
+def _extract_terms(docs: list[tuple[str, str]]) -> list[tuple[str, int, int]]:
     terms = []
 
     for doc_id, (title, contents) in enumerate(docs):
-        for term in analyze(contents):
-            terms.append((term, doc_id))
+        tokens = analyze(contents)
+        for token in tokens:
+            terms.append((token, doc_id, len(tokens)))
 
     return sorted(terms)  # Sort by term then doc ID

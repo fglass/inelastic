@@ -1,5 +1,6 @@
 from inelastic.index import index
-from inelastic.query import Result, _calc_raw_tf_idf, query
+from inelastic.query import QueryConfig, Result, query
+from inelastic.score import raw_tf_idf_strategy
 
 
 def test_exact_search():
@@ -27,7 +28,7 @@ def test_conjunctive_search():
     ]
 
     idx = index(docs)
-    results = query(idx, q="fox box", conjunctive=True)
+    results = query(idx, q="fox box", config=QueryConfig(conjunctive=True))
 
     assert len(results) == 0
 
@@ -39,7 +40,7 @@ def test_disjunctive_search():
     ]
 
     idx = index(docs)
-    results = query(idx, q="fox box", conjunctive=False)
+    results = query(idx, q="fox box", config=QueryConfig(conjunctive=False))
 
     _assert_in_results(0, results)
     _assert_in_results(1, results)
@@ -52,24 +53,12 @@ def test_ranking():
     ]
 
     idx = index(docs)
-    results = query(idx, q="dog")
+    results = query(
+        idx, q="dog", config=QueryConfig(score_strategy=raw_tf_idf_strategy)
+    )
 
     assert results[0].doc_id == 1
     assert results[1].doc_id == 0
-
-
-def test_raw_tf_idf_scoring():
-    docs = [
-        ("title0", "wild dog"),
-        ("title1", "cat cat cat dog dog"),
-        ("title2", "cat sat on a mat"),
-    ]
-
-    idx = index(docs)
-    tokens = ["wild", "cat"]
-    scores = [_calc_raw_tf_idf(idx, tokens, doc_id) for doc_id in range(len(docs))]
-
-    assert scores == [1.0, 1.5, 0.5]
 
 
 def _assert_in_results(doc_id: int, results: list[Result]):

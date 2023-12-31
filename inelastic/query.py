@@ -1,8 +1,17 @@
 from dataclasses import dataclass
 from typing import Callable
 
+from inelastic import score
 from inelastic.analysis import analyze
 from inelastic.index import Index
+
+
+@dataclass
+class QueryConfig:
+    conjunctive: bool = False
+    score_strategy: Callable[
+        [Index, list[str], int], float
+    ] = score.lucene_classic_strategy
 
 
 @dataclass
@@ -11,11 +20,12 @@ class Result:
     doc_id: int
 
 
-def query(index: Index, q: str, conjunctive: bool = False) -> list[Result]:
+def query(index: Index, q: str, config: QueryConfig = QueryConfig()) -> list[Result]:
     tokens = analyze(q)
-    doc_ids = _retrieve(index, tokens, conjunctive)
+    doc_ids = _retrieve(index, tokens, config.conjunctive)
     return _rank(
-        doc_ids, score_strategy=lambda doc_id: _calc_raw_tf_idf(index, tokens, doc_id)
+        doc_ids,
+        score_strategy=lambda doc_id: config.score_strategy(index, tokens, doc_id),
     )
 
 
@@ -83,16 +93,3 @@ def _union_postings(a: list[int], b: list[int]) -> list[int]:
     merged.extend(b[j:])
 
     return merged
-
-
-def _calc_raw_tf_idf(index: Index, tokens: list[str], doc_id: int) -> float:
-    score = 0.0
-
-    for token in tokens:
-        tf = index.get(token, {}).get(doc_id, 0)
-        if tf > 0:
-            df = len(index[token])
-            tf_idf = tf / df
-            score += tf_idf
-
-    return score
