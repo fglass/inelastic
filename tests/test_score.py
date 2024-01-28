@@ -4,29 +4,69 @@ from inelastic.score import lucene_classic_strategy, raw_tf_idf_strategy
 
 def test_raw_tf_idf_scoring():
     docs = [
-        ("title0", "wild dog"),
-        ("title1", "cat cat cat dog dog"),
-        ("title2", "cat sat on a mat"),
+        ("", "wild dog"),
+        ("", "cat cat cat dog dog"),
+        ("", "cat sat on a mat"),
     ]
+    query_terms = ["wild", "cat"]
 
     idx = index(docs)
-    tokens = ["wild", "cat"]
-    scores = [raw_tf_idf_strategy(idx, tokens, doc_id) for doc_id in range(len(docs))]
+    scores = [
+        raw_tf_idf_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
+    ]
 
-    assert scores == [1.0, 1.5, 0.5]
+    assert scores == [1.0, 0.75, 0.25]
 
 
 def test_lucene_classic_scoring():
     docs = [
-        ("title0", "wild dog"),
-        ("title1", "cat cat cat dog dog"),
-        ("title2", "cat sat on a mat"),
+        ("", "wild dog"),
+        ("", "cat cat cat dog dog"),
+        ("", "cat sat on a mat"),
     ]
+    query_terms = ["wild", "cat"]
 
     idx = index(docs)
-    tokens = ["wild", "cat"]
     scores = [
-        lucene_classic_strategy(idx, tokens, doc_id) for doc_id in range(len(docs))
+        lucene_classic_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
     ]
 
-    assert scores == [0.7419714901993204, 0.655753083298671, 0.42328679513998635]
+    assert scores == [0.47647624893784046, 0.3018976658796704, 0.1948741053684758]
+
+
+def test_against_elasticsearch_single_term():
+    docs = [("", "quick brown fox")]
+    query_terms = ["fox"]
+
+    idx = index(docs)
+    scores = [
+        lucene_classic_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
+    ]
+
+    assert scores == [0.5773502691896258]
+
+
+def test_against_elasticsearch_multi_term():
+    docs = [("", "quick brown fox")]
+    query_terms = ["quick", "brown", "fox"]
+
+    idx = index(docs)
+    scores = [
+        lucene_classic_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
+    ]
+
+    # NOTE: es=0.8660254037844388 due to lossy norm encoding
+    assert scores == [1.0000000000000002]
+
+
+def test_against_elasticsearch_missing_term():
+    docs = [("", "quick brown")]
+    query_terms = ["quick", "brown", "dead"]
+
+    idx = index(docs)
+    scores = [
+        lucene_classic_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
+    ]
+
+    # NOTE: es=0.3021964368185907 due to lossy norm encoding
+    assert scores == [0.4273702994496751]

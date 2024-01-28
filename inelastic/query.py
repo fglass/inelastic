@@ -20,43 +20,43 @@ class Result:
     doc_id: int
 
 
-def query(index: Index, q: str, config: QueryConfig = QueryConfig()) -> list[Result]:
-    tokens = analyze(q)
-    doc_ids = _retrieve(index, tokens, config.conjunctive)
+def query(idx: Index, q: str, config: QueryConfig = QueryConfig()) -> list[Result]:
+    query_terms = analyze(q)
+    doc_ids = _retrieve(idx, query_terms, config.conjunctive)
     return _rank(
         doc_ids,
-        score_strategy=lambda doc_id: config.score_strategy(index, tokens, doc_id),
+        score_strategy=lambda doc_id: config.score_strategy(idx, query_terms, doc_id),
     )
 
 
-def _retrieve(index: Index, tokens: list[str], conjunctive: bool) -> list[int]:
+def _retrieve(idx: Index, query_terms: list[str], conjunctive: bool) -> list[int]:
     doc_ids: list[int] = []
 
-    for i, token in enumerate(tokens):
-        if token not in index:
+    for i, term in enumerate(query_terms):
+        if term not in idx.inverted:
             continue
 
-        postings = list(index[token].keys())
+        postings_list = list(idx.inverted[term].keys())
 
         if conjunctive and len(doc_ids) == 0 and i == 0:
-            doc_ids = postings
+            doc_ids = postings_list
         else:
-            doc_ids = _merge_postings(doc_ids, postings, conjunctive)
+            doc_ids = _merge_postings_list(doc_ids, postings_list, conjunctive)
 
     return doc_ids
 
 
 def _rank(doc_ids: list[int], score_strategy: Callable[[int], float]) -> list[Result]:
     results = [Result(score_strategy(d), d) for d in doc_ids]
-    results.sort(key=lambda r: r.score, reverse=True)
+    results.sort(key=lambda r: r.score, reverse=True)  # TODO: use heap
     return results
 
 
-def _merge_postings(a: list[int], b: list[int], conjunctive: bool) -> list[int]:
-    return _intersect_postings(a, b) if conjunctive else _union_postings(a, b)
+def _merge_postings_list(a: list[int], b: list[int], conjunctive: bool) -> list[int]:
+    return _intersect_postings_list(a, b) if conjunctive else _union_postings_list(a, b)
 
 
-def _intersect_postings(a: list[int], b: list[int]) -> list[int]:
+def _intersect_postings_list(a: list[int], b: list[int]) -> list[int]:
     merged = []
     i = j = 0
 
@@ -73,7 +73,7 @@ def _intersect_postings(a: list[int], b: list[int]) -> list[int]:
     return merged
 
 
-def _union_postings(a: list[int], b: list[int]) -> list[int]:
+def _union_postings_list(a: list[int], b: list[int]) -> list[int]:
     merged = []
     i = j = 0
 

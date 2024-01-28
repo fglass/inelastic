@@ -1,30 +1,44 @@
+import math
 from typing import NamedTuple
 
 from inelastic.analysis import analyze
 
-PostingEntry = NamedTuple("PostingEntry", [("tf", int), ("field_length", int)])
-# Term -> postings (sorted) -> posting_entry(tf, field_length)
-Index = dict[str, dict[int, PostingEntry]]
+InvertedIndex = dict[str, dict[int, int]]  # Term -> postings (sorted) -> tf
+DocumentIndex = dict[int, float]  # Doc ID -> field norm
+Index = NamedTuple("Index", [("inverted", InvertedIndex), ("docs", DocumentIndex)])
 
 
 def index(docs: list[tuple[str, str]]) -> Index:
-    idx: Index = {}
+    inverted_idx: InvertedIndex = {}
+    doc_idx, terms = _analyze_documents(docs)
 
-    for term, doc_id, field_length in _extract_terms(docs):
-        if term not in idx:
-            idx[term] = {}
-        tf = idx[term].get(doc_id, PostingEntry(0, 0)).tf
-        idx[term][doc_id] = PostingEntry(tf + 1, field_length)
+    for term, doc_id in terms:
+        if term not in inverted_idx:
+            inverted_idx[term] = {}
 
-    return idx
+        postings_list = inverted_idx[term]
+        postings_list[doc_id] = postings_list.get(doc_id, 0) + 1
+
+    return Index(inverted_idx, doc_idx)
 
 
-def _extract_terms(docs: list[tuple[str, str]]) -> list[tuple[str, int, int]]:
+def _analyze_documents(docs: list[tuple[str, str]]):
+    doc_idx: DocumentIndex = {}
     terms = []
 
     for doc_id, (title, contents) in enumerate(docs):
-        tokens = analyze(contents)
-        for token in tokens:
-            terms.append((token, doc_id, len(tokens)))
+        tokens = analyze(contents)  # TODO: multi-field
+        field_length = len(tokens)
 
-    return sorted(terms)  # Sort by term then doc ID
+        if field_length == 0:
+            continue
+
+        field_norm = 1 / math.sqrt(field_length)
+        doc_idx[doc_id] = field_norm  # No lossy encoding
+
+        for token in tokens:
+            terms.append((token, doc_id))
+
+    terms.sort()  # Sort by term then doc ID
+
+    return doc_idx, terms

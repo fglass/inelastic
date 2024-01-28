@@ -5,7 +5,7 @@ from inelastic.query import Result, query
 
 # https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
 DATA_DUMP = "./enwiki-latest-abstract1.xml"
-LIMIT = 10
+PAGE_SIZE = 10
 
 
 def search():
@@ -15,7 +15,7 @@ def search():
 
     t2 = time.time()
     idx = index(docs)
-    print(f"Indexed {len(idx)} terms in {time.time() - t2:.2f}s")
+    print(f"Indexed {len(idx.inverted)} terms in {time.time() - t2:.2f}s")
 
     while True:
         q = input("Search: ")
@@ -53,8 +53,8 @@ def _pprint(results: list[Result], docs: list[tuple[str, str]], duration_ms: flo
     if len(results) == 0:
         return
 
-    print(f"Top {min(len(results), LIMIT)} results:")
-    results = results[:LIMIT]
+    print(f"Top {min(len(results), PAGE_SIZE)} results:")
+    results = results[:PAGE_SIZE]
 
     for i, r in enumerate(results):
         title, content = docs[r.doc_id]
