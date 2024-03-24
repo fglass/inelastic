@@ -1,5 +1,5 @@
 from inelastic.index import index
-from inelastic.query import QueryConfig, Result, query
+from inelastic.query import Config, Result, query
 from inelastic.score import raw_tf_idf_strategy
 
 
@@ -28,7 +28,7 @@ def test_conjunctive_search():
     ]
 
     idx = index(docs)
-    results = query(idx, q="fox box", config=QueryConfig(conjunctive=True))
+    results = query(idx, q="fox box", config=Config(conjunctive=True))
 
     assert len(results) == 0
 
@@ -40,7 +40,7 @@ def test_disjunctive_search():
     ]
 
     idx = index(docs)
-    results = query(idx, q="fox box", config=QueryConfig(conjunctive=False))
+    results = query(idx, q="fox box", config=Config(conjunctive=False))
 
     _assert_in_results(0, results)
     _assert_in_results(1, results)
@@ -53,9 +53,7 @@ def test_ranking():
     ]
 
     idx = index(docs)
-    results = query(
-        idx, q="dog", config=QueryConfig(score_strategy=raw_tf_idf_strategy)
-    )
+    results = query(idx, q="dog", config=Config(score_strategy=raw_tf_idf_strategy))
 
     assert results[0].doc_id == 1
     assert results[1].doc_id == 0

@@ -1,72 +1,98 @@
-from inelastic.index import index
-from inelastic.score import lucene_classic_strategy, raw_tf_idf_strategy
+from typing import Callable
+from inelastic.index import Index, index
+from inelastic.score import (
+    lucene_bm25_strategy,
+    lucene_classic_strategy,
+    raw_tf_idf_strategy,
+)
+
+SAMPLE_WIKI_DOCS: list[tuple[str, str]] = [
+    ("Lynx (disambiguation)", "A lynx is a type of wild cat...."),
+    ("Bobcat (disambiguation)", "Bobcat is a species of wild cat in North America...."),
+    (
+        "Wildcat",
+        "The wildcat is a species complex comprising two small wild cat species: the European wildcat (Felis silvestris) and the African wildcat (F. lybica)....",
+    ),
+    (
+        "Ocicat",
+        "The Ocicat is an all-domestic breed of cat which resembles a wild cat but has no recent wild DNA in its gene pool. The breed is unusual in that it has a spotted tabby pattern, like a wild cat, but has the temperament of a domestic animal....",
+    ),
+    (
+        "Random permutation",
+        "A random permutation is a random ordering of a set of objects, that is, a permutation-valued random variable.  The use of random permutations is often fundamental to fields that use randomized algorithms such as coding theory, cryptography, and simulation....",
+    ),
+]
 
 
 def test_raw_tf_idf_scoring():
-    docs = [
-        ("", "wild dog"),
-        ("", "cat cat cat dog dog"),
-        ("", "cat sat on a mat"),
-    ]
-    query_terms = ["wild", "cat"]
+    idx = index(SAMPLE_WIKI_DOCS)
+    query_terms = ["small", "wild", "cat"]
+    score_strategy = raw_tf_idf_strategy
 
-    idx = index(docs)
+    scores = _calculate_scores(idx, query_terms, score_strategy)
+
+    assert scores == [
+        ("Wildcat", 1.125),
+        ("Ocicat", 0.375),
+        ("Lynx (disambiguation)", 0.125),
+        ("Bobcat (disambiguation)", 0.125),
+        ("Random permutation", 0.0),
+    ]
+
+
+def test_lucene_classic_strategy():
+    """
+    Compared to Elasticsearch v5.6.16 with identical document set.
+    Scores are not 1:1 due to Elasticsearch's lossy encoding of field norms
+    """
+    idx = index(SAMPLE_WIKI_DOCS)
+    query_terms = ["small", "wild", "cat"]
+    score_strategy = lucene_classic_strategy
+
+    scores = _calculate_scores(idx, query_terms, score_strategy)
+
+    assert scores == [
+        ("Wildcat", 0.6507887551664275),  # ES=0.5869655 (fieldNorm=0.21875)
+        ("Lynx (disambiguation)", 0.34730853488543767),
+        (
+            "Bobcat (disambiguation)",
+            0.28357623126097775,  # ES=0.26048142 (fieldNorm=0.375)
+        ),
+        ("Ocicat", 0.22341230022409633),  # ES=0.18798625 (fieldNorm=0.15625)
+        ("Random permutation", 0.0),
+    ]
+
+
+def test_lucene_bm25_strategy():
+    """
+    Compared to Elasticsearch v7.17.18 with identical document set.
+    Scores match but Elasticsearch's scores have lower precision
+    """
+    idx = index(SAMPLE_WIKI_DOCS)
+    query_terms = ["small", "wild", "cat"]
+    score_strategy = lucene_bm25_strategy
+
+    scores = _calculate_scores(idx, query_terms, score_strategy)
+
+    assert scores == [
+        ("Wildcat", 1.9025460287214067),
+        ("Lynx (disambiguation)", 0.8284862335065372),
+        ("Bobcat (disambiguation)", 0.7709968264012261),
+        ("Ocicat", 0.7668580397564343),
+        ("Random permutation", 0.0),
+    ]
+
+
+def _calculate_scores(
+    idx: Index,
+    query_terms: list[str],
+    score_strategy: Callable[[Index, list[str], int], float],
+) -> list[tuple[str, float]]:
+
     scores = [
-        raw_tf_idf_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
+        (title, score_strategy(idx, query_terms, doc_id))
+        for doc_id, (title, _) in enumerate(SAMPLE_WIKI_DOCS)
     ]
+    scores.sort(key=lambda x: x[1], reverse=True)
 
-    assert scores == [1.0, 0.75, 0.25]
-
-
-def test_lucene_classic_scoring():
-    docs = [
-        ("", "wild dog"),
-        ("", "cat cat cat dog dog"),
-        ("", "cat sat on a mat"),
-    ]
-    query_terms = ["wild", "cat"]
-
-    idx = index(docs)
-    scores = [
-        lucene_classic_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
-    ]
-
-    assert scores == [0.47647624893784046, 0.3018976658796704, 0.1948741053684758]
-
-
-def test_against_elasticsearch_single_term():
-    docs = [("", "quick brown fox")]
-    query_terms = ["fox"]
-
-    idx = index(docs)
-    scores = [
-        lucene_classic_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
-    ]
-
-    assert scores == [0.5773502691896258]
-
-
-def test_against_elasticsearch_multi_term():
-    docs = [("", "quick brown fox")]
-    query_terms = ["quick", "brown", "fox"]
-
-    idx = index(docs)
-    scores = [
-        lucene_classic_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
-    ]
-
-    # NOTE: es=0.8660254037844388 due to lossy norm encoding
-    assert scores == [1.0000000000000002]
-
-
-def test_against_elasticsearch_missing_term():
-    docs = [("", "quick brown")]
-    query_terms = ["quick", "brown", "dead"]
-
-    idx = index(docs)
-    scores = [
-        lucene_classic_strategy(idx, query_terms, doc_id) for doc_id in range(len(docs))
-    ]
-
-    # NOTE: es=0.3021964368185907 due to lossy norm encoding
-    assert scores == [0.4273702994496751]
+    return scores

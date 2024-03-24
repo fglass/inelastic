@@ -7,11 +7,9 @@ from inelastic.index import Index
 
 
 @dataclass
-class QueryConfig:
+class Config:
     conjunctive: bool = False
-    score_strategy: Callable[
-        [Index, list[str], int], float
-    ] = score.lucene_classic_strategy
+    score_strategy: Callable[[Index, list[str], int], float] = score.raw_tf_idf_strategy
 
 
 @dataclass
@@ -20,8 +18,10 @@ class Result:
     doc_id: int
 
 
-def query(idx: Index, q: str, config: QueryConfig = QueryConfig()) -> list[Result]:
+def query(idx: Index, q: str, config: Config | None = None) -> list[Result]:
     query_terms = analyze(q)
+    config = config or Config()
+
     doc_ids = _retrieve(idx, query_terms, config.conjunctive)
     return _rank(
         doc_ids,

@@ -1,7 +1,8 @@
 import time
 
 from inelastic.index import index
-from inelastic.query import Result, query
+from inelastic.query import Config, Result, query
+from inelastic.score import lucene_bm25_strategy
 
 # https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
 DATA_DUMP = "./enwiki-latest-abstract1.xml"
@@ -17,11 +18,17 @@ def search():
     idx = index(docs)
     print(f"Indexed {len(idx.inverted)} terms in {time.time() - t2:.2f}s")
 
+    query_config = Config(
+        score_strategy=lambda i, d, q: lucene_bm25_strategy(
+            i, d, q, boost=2.2, k1=0.4, b=0.75
+        )
+    )
+
     while True:
         q = input("Search: ")
 
         tq = time.time()
-        results = query(idx, q)
+        results = query(idx, q, query_config)
         duration_ms = (time.time() - tq) * 1000
 
         _pprint(results, docs, duration_ms)
