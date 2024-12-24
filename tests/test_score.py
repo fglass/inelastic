@@ -88,7 +88,6 @@ def _calculate_scores(
     query_terms: list[str],
     score_strategy: Callable[[Index, list[str], int], float],
 ) -> list[tuple[str, float]]:
-
     scores = [
         (title, score_strategy(idx, query_terms, doc_id))
         for doc_id, (title, _) in enumerate(SAMPLE_WIKI_DOCS)

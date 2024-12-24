@@ -31,8 +31,8 @@ def _analyze_documents(
     terms = []
     total_field_length = 0.0
 
-    for doc_id, (title, contents) in enumerate(docs):
-        tokens = analyze(contents)
+    for doc_id, (title, abstract) in enumerate(docs):
+        tokens = analyze(abstract)
         field_length = len(tokens)
 
         if field_length == 0:

@@ -1,11 +1,12 @@
+import os
 import time
 
 from inelastic.index import index
 from inelastic.query import Config, Result, query
 from inelastic.score import lucene_bm25_strategy
 
-# https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
-DATA_DUMP = "./enwiki-latest-abstract1.xml"
+# From https://dumps.wikimedia.org/enwiki/latest/
+DATA_DUMP = os.environ["DATA_DUMP"]
 PAGE_SIZE = 10
 
 
@@ -45,10 +46,10 @@ def _load() -> list[tuple[str, str]]:
                     "</title>\n"
                 )
             if line.startswith("<abstract>"):
-                doc_content = line.removeprefix("<abstract>").removesuffix(
+                doc_abstract = line.removeprefix("<abstract>").removesuffix(
                     "</abstract>\n"
                 )
-                docs.append((doc_title, doc_content))
+                docs.append((doc_title, doc_abstract))
                 doc_title = ""
 
     return docs
@@ -64,8 +65,8 @@ def _pprint(results: list[Result], docs: list[tuple[str, str]], duration_ms: flo
     results = results[:PAGE_SIZE]
 
     for i, r in enumerate(results):
-        title, content = docs[r.doc_id]
-        print(f"\t{i + 1}. [{r.score:.2f}] {r.doc_id} {title}: {content[:50]}...")
+        title, abstract = docs[r.doc_id]
+        print(f"\t{i + 1}. [{r.score:.2f}] {r.doc_id} {title}: {abstract[:50]}...")
 
 
 if __name__ == "__main__":
